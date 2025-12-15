@@ -24,7 +24,7 @@ export default function APIKeyForm() {
 
     try {
       const res = await fetch(
-        "http://localhost:5000/all-orders-existing",
+        "https://portfolioanalytics-production.up.railway.app/all-orders-existing",
         {
           method: "POST",
           headers: {

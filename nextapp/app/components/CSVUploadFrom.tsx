@@ -25,7 +25,7 @@ export default function CSVUploadForm() {
     const formData = new FormData();
     formData.append("file", file);
 
-    const uploadRes = await fetch("http://localhost:5000/csv_parser_all", {
+    const uploadRes = await fetch("https://portfolioanalytics-production.up.railway.app/csv_parser_all", {
       method: "POST",
       body: formData,
     });
