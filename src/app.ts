@@ -27,20 +27,20 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 const ORDERS_FILE = path.join(process.cwd(), "all_orders.json");
 
-const redis = new Redis({
-  host: process.env.REDIS_HOST || "127.0.0.1",
-  port: Number(process.env.REDIS_PORT!) || 6379,
-  //   password: process.env.REDIS_PASSWORD! || undefined,
-});
+// const redis = new Redis({
+//   host: process.env.REDIS_HOST || "127.0.0.1",
+//   port: Number(process.env.REDIS_PORT!) || 6379,
+//   //   password: process.env.REDIS_PASSWORD! || undefined,
+// });
 
 // quick sanity check
-redis.on("connect", () => console.log("Redis connected"));
-redis.on("error", (err: any) => console.error("Redis error:", err));
+// redis.on("connect", () => console.log("Redis connected"));
+// redis.on("error", (err: any) => console.error("Redis error:", err));
 
 const app = express();
 const PORT = 5000;
 
-app.set("redis", redis);
+// app.set("redis", redis);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -265,12 +265,12 @@ async function getTrades(symbol: string, API_KEY: string, API_SECRET: string) {
 app.get("/full-history", async (req, res) => {
   try {
     const { API_KEY, API_SECRET } = req.body;
-    const client = req.app.get("redis");
+    // const client = req.app.get("redis");
 
-    const result = await client.get("full-history");
-    if (result) {
-      return res.json(JSON.parse(result));
-    }
+    // const result = await client.get("full-history");
+    // if (result) {
+    //   return res.json(JSON.parse(result));
+    // }
     const assets = await getHeldAssets(API_KEY, API_SECRET);
     console.log(assets.length);
     let finalResults: any[] = [];
@@ -294,7 +294,7 @@ app.get("/full-history", async (req, res) => {
       }
     }
 
-    await client.set("full-history", JSON.stringify(finalResults));
+    // await client.set("full-history", JSON.stringify(finalResults));
 
     return res.json(finalResults);
   } catch (err: any) {
@@ -632,14 +632,14 @@ app.get("/users/info", async (req, res) => {
 });
 
 app.get("/asset-origins", async (req, res) => {
-  const client = req.app.get("redis");
+  //   const client = req.app.get("redis");
 
-  if (client) {
-    const result = await client.get("asset-origins");
-    if (result) {
-      return res.json(JSON.parse(result));
-    }
-  }
+  //   if (client) {
+  //     const result = await client.get("asset-origins");
+  //     if (result) {
+  //       return res.json(JSON.parse(result));
+  //     }
+  //   }
 
   const data = await detectOrigins();
 
@@ -650,7 +650,7 @@ app.get("/asset-origins", async (req, res) => {
   //   );
   //   generateBinanceHoldingsPdf(data, "Binance_Holdings_Report.pdf");
 
-  await client.set("asset-origins", JSON.stringify(data));
+  //   await client.set("asset-origins", JSON.stringify(data));
   return res.json(data);
 });
 
