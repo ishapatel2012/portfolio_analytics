@@ -33,7 +33,7 @@ export function readCsv(path: string): Promise<TradeRow[]> {
   });
 }
 
-const data = await readCsv("/home/neosoft/Downloads/Insta_history.csv");
+// const data = await readCsv("/home/neosoft/Downloads/Insta_history.csv");
 
 export function calculateFIFO(
   rows: TradeRow[],
