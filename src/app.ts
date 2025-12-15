@@ -238,6 +238,7 @@ function getAllCombinations() {
 
   // Filter in one fast pass
   const result = allPairs.filter((pair) => pattern.test(pair));
+  //   return result.filter((pair) => pair === "TRXUSDT");
 
   return result;
 }
@@ -471,13 +472,6 @@ app.get("/all-orders-list", async (req, res) => {
   }
 });
 
-interface IncomeEvent {
-  asset: string;
-  amount: string;
-  time: number;
-  type: "DIVIDEND" | "AIRDROP";
-}
-
 app.post("/all-orders-existing", async (req, res) => {
   try {
     const uploadsDir = path.join(process.cwd(), "uploads");
@@ -528,36 +522,12 @@ app.post("/all-orders-existing", async (req, res) => {
       }
     }
 
-    console.log(results, "################################");
-
-    // await client.set("portfolio", JSON.stringify(results));
-
-    let formatted: any[] = [];
-
-    // 2. Loop through each asset's trade data
-    for (const item of results) {
-      for (const trade of item.orders) {
-        formatted.push({
-          symbol: trade.symbol, // example: "ZECUSDT"
-          price: trade.price, // string
-          qty: trade.qty, // string
-          quoteQty: trade.quoteQty, // string
-          side: trade.isBuyer ? "BUY" : "SELL", // convert boolean → BUY/SELL
-          time: trade.time, // timestamp
-        });
-      }
-    }
-
-    // Sort newest-first (optional)
-    formatted.sort((a, b) => b.time - a.time);
-
-    const taxResult = calculateTax(formatted);
-
-    console.table(taxResult);
+    const taxResult = calculateTax(results);
 
     const pdfName = `Binance_Asset_Source_And_Tax_Report_${Date.now()}.pdf`;
+    const pdfPath = path.join(uploadsDir, pdfName);
 
-    generateAssetSourcePdf(trades, taxResult, pdfName);
+    generateAssetSourcePdf(trades, taxResult, pdfPath);
 
     const downloadUrl = `${req.protocol}://${req.get(
       "host"
