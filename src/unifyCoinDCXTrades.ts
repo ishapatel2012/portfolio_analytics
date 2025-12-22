@@ -66,39 +66,40 @@ export function unifyCoinDCXTrades(fileBuffer: Buffer): UnifiedTrade[] {
     n.toLowerCase().includes("spot")
   );
 
-  if (!spotSheetName) {
-    throw new Error("SPOT sheet not found");
-  }
+  if (spotSheetName) {
+    const spotSheet = workbook.Sheets[spotSheetName];
 
-  const spotSheet = workbook.Sheets[spotSheetName];
-
-  if (spotSheet) {
-    const rows = XLSX.utils.sheet_to_json<any>(spotSheet, {
-      range: 8,
-      defval: null,
-      raw: false,
-    });
-
-    for (const r of rows) {
-      const asset = extractAssetFromPair(r["Crypto Pair"], r["Base currency"]);
-
-      unified.push({
-        "Order ID": String(r["Trade ID"]),
-        "Created At": String(r["Trade Completion time"]),
-        Currency: asset,
-        Side: r["Side (Buy/Sell)"],
-        "Total Quantity": Number(r["Quantity"]),
-        "Price Per Unit": Number(
-          r["Avg Buying/Selling Price(in base currency)"]
-        ),
-        "Total Amount": Number(
-          r["Gross Amount Paid/Received by the user(in base currency)"]
-        ),
-        fee_inr: Number(r["Fees(in base currency)"] || 0), // optional conversion later
-        net_inr: Number(r["*Net Amount Paid/Received by the user (in INR)"]),
-        "TDS Amount": Number(r["**TDS (in INR)"] || 0),
-        source: "SPOT",
+    if (spotSheet) {
+      const rows = XLSX.utils.sheet_to_json<any>(spotSheet, {
+        range: 8,
+        defval: null,
+        raw: false,
       });
+
+      for (const r of rows) {
+        const asset = extractAssetFromPair(
+          r["Crypto Pair"],
+          r["Base currency"]
+        );
+
+        unified.push({
+          "Order ID": String(r["Trade ID"]),
+          "Created At": String(r["Trade Completion time"]),
+          Currency: asset,
+          Side: r["Side (Buy/Sell)"],
+          "Total Quantity": Number(r["Quantity"]),
+          "Price Per Unit": Number(
+            r["Avg Buying/Selling Price(in base currency)"]
+          ),
+          "Total Amount": Number(
+            r["Gross Amount Paid/Received by the user(in base currency)"]
+          ),
+          fee_inr: Number(r["Fees(in base currency)"] || 0), // optional conversion later
+          net_inr: Number(r["*Net Amount Paid/Received by the user (in INR)"]),
+          "TDS Amount": Number(r["**TDS (in INR)"] || 0),
+          source: "SPOT",
+        });
+      }
     }
   }
 
