@@ -69,6 +69,7 @@ app.use(
       //   "http://localhost:5173", // Vite / React
       "http://localhost:3000", // optional
       "https://portfolio-analytics-eta.vercel.app",
+      "https://portfolio-analytics-forked.vercel.app"
     ],
     methods: ["GET", "POST"],
     credentials: true,
