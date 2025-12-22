@@ -1,5 +1,6 @@
 import fs from "fs";
 import csv from "csv-parser";
+import { Readable } from "stream";
 
 export interface TradeRow {
   "Order ID": string;
@@ -21,11 +22,26 @@ interface FIFOResult {
   cashReceived: number;
 }
 
-export function readCsv(path: string): Promise<TradeRow[]> {
+// Overloaded function signatures
+export function readCsv(path: string): Promise<TradeRow[]>;
+export function readCsv(buffer: Buffer): Promise<TradeRow[]>;
+
+// Implementation
+export function readCsv(pathOrBuffer: string | Buffer): Promise<TradeRow[]> {
   return new Promise((resolve, reject) => {
     const results: TradeRow[] = [];
 
-    fs.createReadStream(path)
+    let stream: Readable;
+
+    if (Buffer.isBuffer(pathOrBuffer)) {
+      // Create a readable stream from the buffer
+      stream = Readable.from(pathOrBuffer);
+    } else {
+      // Create a read stream from the file path
+      stream = fs.createReadStream(pathOrBuffer);
+    }
+
+    stream
       .pipe(csv())
       .on("data", (row) => results.push(row))
       .on("end", () => resolve(results))
@@ -228,13 +244,30 @@ export interface TradeRowUnifiedBinance {
   "Total Amount": any;
 }
 
+// Overloaded function signatures
+export function readCsvBinance(path: string): Promise<TradeRowUnifiedBinance[]>;
 export function readCsvBinance(
-  path: string
+  buffer: Buffer
+): Promise<TradeRowUnifiedBinance[]>;
+
+// Implementation
+export function readCsvBinance(
+  pathOrBuffer: string | Buffer
 ): Promise<TradeRowUnifiedBinance[]> {
   return new Promise((resolve, reject) => {
     const results: TradeRowUnifiedBinance[] = [];
 
-    fs.createReadStream(path)
+    let stream: Readable;
+
+    if (Buffer.isBuffer(pathOrBuffer)) {
+      // Create a readable stream from the buffer
+      stream = Readable.from(pathOrBuffer);
+    } else {
+      // Create a read stream from the file path
+      stream = fs.createReadStream(pathOrBuffer);
+    }
+
+    stream
       .pipe(csv())
       .on("data", (row) => results.push(row))
       .on("end", () => resolve(results))
