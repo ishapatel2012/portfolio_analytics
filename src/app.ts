@@ -54,6 +54,7 @@ import cors from "cors";
 import { calculateTax } from "./binanceTaxCalculation.js";
 import {
   unifiedBinanceTrades,
+  unifiedCoinSwitch,
   unifyCoinDCXTrades,
 } from "./unifyCoinDCXTrades.js";
 import { saveBinanceCSV, saveUnifiedCSV } from "./writeUnifiedSheet.js";
@@ -65,7 +66,7 @@ app.use(
     origin: [
       //   "http://localhost:5173", // Vite / React
       "http://localhost:3000", // optional
-      "https://portfolio-analytics-eta.vercel.app"
+      "https://portfolio-analytics-eta.vercel.app",
     ],
     methods: ["GET", "POST"],
     credentials: true,
@@ -781,9 +782,21 @@ app.get("/download/:file", (req, res) => {
 const multerUpload = multer();
 const router = express.Router();
 
-export async function processCsvAndGeneratePdf(csvPath: string) {
-  const pdfName = `FY_2024_Crypto_Tax_Report_${Date.now()}.pdf`;
+export async function processCsvAndGeneratePdf(
+  csvPath: string,
+  exchangeName?: string
+) {
+  const pdfName = `FY_2025_Crypto_Tax_Report_${Date.now()}.pdf`;
   const pdfPath = path.join(process.cwd(), "uploads", pdfName);
+
+  if (exchangeName === "binance") {
+    const data = await readCsvBinance(csvPath);
+    const result = calculateFifoUnifiedBinance(data);
+
+    await generateTaxPdfBinanceUnified(result, pdfPath);
+
+    return { pdfName, pdfPath };
+  }
 
   const data = await readCsv(csvPath);
   const result = calculateFifoForAllSymbols(data);
@@ -812,21 +825,68 @@ app.post(
         const { filePath, fileName } = saveUnifiedCSV(unified);
 
         // 3. Immediately parse CSV & generate PDF
-        const { pdfName } = await processCsvAndGeneratePdf(filePath);
+        const { pdfName, pdfPath } = await processCsvAndGeneratePdf(filePath);
+
+        const downloadUrl = `${req.protocol}://${req.get(
+          "host"
+        )}/download/${pdfName}`;
 
         // 4. Respond once
         return res.json({
-          message: "Unified CSV + Tax PDF generated",
-          csvFile: fileName,
-          csvDownloadUrl: `${req.protocol}://${req.get(
-            "host"
-          )}/coindcx/${fileName}`,
-          pdfDownloadUrl: `${req.protocol}://${req.get(
-            "host"
-          )}/download/${pdfName}`,
+          // message: "Unified CSV + Tax PDF generated",
+          // csvFile: fileName,
+          // csvDownloadUrl: `${req.protocol}://${req.get(
+          //   "host"
+          // )}/coindcx/${fileName}`,
+          downloadUrl,
         });
       } else if (exchangeName == "binance") {
-      } else if (exchangeName == "coin-switch") {
+        const unified = await unifiedBinanceTrades(req.file.buffer);
+
+        // 2. Save unified CSV
+        const { filePath, fileName } = await saveBinanceCSV(unified);
+
+        // 3. Immediately parse CSV & generate PDF
+        const { pdfName, pdfPath } = await processCsvAndGeneratePdf(
+          filePath,
+          "binance"
+        );
+
+        const downloadUrl = `${req.protocol}://${req.get(
+          "host"
+        )}/download/${pdfName}`;
+
+        // 4. Respond once
+        return res.json({
+          // message: "Unified CSV + Tax PDF generated",
+          // csvFile: fileName,
+          // csvDownloadUrl: `${req.protocol}://${req.get(
+          //   "host"
+          // )}/coindcx/${fileName}`,
+          downloadUrl,
+        });
+      } else if (exchangeName == "coinswitch") {
+        const unified = unifiedCoinSwitch(req.file.buffer);
+
+        // 2. Save unified CSV
+        const { filePath, fileName } = saveUnifiedCSV(unified);
+
+        // 3. Immediately parse CSV & generate PDF
+        const { pdfName, pdfPath } = await processCsvAndGeneratePdf(filePath);
+
+        const downloadUrl = `${req.protocol}://${req.get(
+          "host"
+        )}/download/${pdfName}`;
+
+        // 4. Respond once
+        return res.json({
+          // message: "Unified CSV + Tax PDF generated",
+          // csvFile: fileName,
+          // csvDownloadUrl: `${req.protocol}://${req.get(
+          //   "host"
+          // )}/coindcx/${fileName}`,
+          downloadUrl,
+        });
       }
     } catch (err) {
       console.error(err);

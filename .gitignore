@@ -4,3 +4,5 @@ all_orders_2.json
 all_orders.json
 /uploads/*pdf
 /uploads/*csv
+
+Downloads/*csv

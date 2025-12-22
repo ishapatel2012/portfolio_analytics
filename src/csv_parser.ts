@@ -113,6 +113,7 @@ export function calculateFifoForAllSymbols(
 
   console.log("ROWS", rows);
   for (const row of rows) {
+    console.log(rows, "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
     const symbol = row.Currency;
     if (!coins.has(symbol)) coins.set(symbol, []);
     coins.get(symbol)!.push(row);
@@ -133,8 +134,6 @@ export function calculateFifoForAllSymbols(
         date: new Date(t["Created At"]).getTime(),
       }));
 
-    console.log(buys.length);
-
     const sells = trades
       .filter(
         (t) => t.Side.toLowerCase() === "sell"
@@ -147,14 +146,16 @@ export function calculateFifoForAllSymbols(
         tds: Number(t["TDS Amount"]),
       }));
 
-    console.log(sells.length);
-
     // if (sells.length === 0) continue; // No tax needed
 
     // Sort buys & sells by date
-    buys.sort((a, b) => a.date - b.date);
+    if (buys.length > 0) buys.sort((a, b) => a.date - b.date);
 
-    sells.sort((a, b) => a.date - b.date);
+    console.log(buys, "%%%%%%%%%%%%%%%%%%%");
+
+    if (sells.length > 0) sells.sort((a, b) => a.date - b.date);
+
+    console.log(sells, "%%%%%%%%%%%%%%%%%%%");
 
     let totalProfit = 0;
     let totalSold = 0;
@@ -192,6 +193,7 @@ export function calculateFifoForAllSymbols(
     let tax = 0;
     let netProfit = 0;
     let tdsDeductionTax = 0;
+    console.log("totalProfit", totalProfit);
     if (totalProfit > 0) {
       tax = totalProfit * taxRate;
 

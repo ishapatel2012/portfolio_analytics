@@ -3,9 +3,61 @@
 import { useState } from "react";
 import "./styles/exchangeCsv.css";
 
+type ApiResponse = {
+  downloadUrl: string;
+};
+
 export default function ExchangeCSVUpload() {
   const [exchange, setExchange] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpload = async () => {
+    if (!exchange) {
+      setError("Please select an exchange");
+      return;
+    }
+
+    if (!file) {
+      setError("Please upload a CSV file");
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("exchangeName", exchange); // IMPORTANT
+      formData.append("file", file);
+
+      const res = await fetch(
+        "http://localhost:5000/unified-tax-calculator",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const data: ApiResponse = await res.json();
+
+      if (!data.downloadUrl) {
+        throw new Error("Download URL missing");
+      }
+
+      // ✅ Let browser download directly
+      window.open(data.downloadUrl, "_blank");
+    } catch (err) {
+      setError("Failed to generate tax report");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="exchange-card">
@@ -31,8 +83,16 @@ export default function ExchangeCSVUpload() {
         onChange={(e) => setFile(e.target.files?.[0] || null)}
       />
 
-      <button className="exchange-btn">
-        Upload CSV
+      {error && (
+        <p style={{ color: "red", marginBottom: "10px" }}>{error}</p>
+      )}
+
+      <button
+        className="exchange-btn"
+        onClick={handleUpload}
+        disabled={loading}
+      >
+        {loading ? "Processing..." : "Upload & Download"}
       </button>
     </div>
   );

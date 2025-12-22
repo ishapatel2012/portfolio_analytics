@@ -105,6 +105,19 @@ export function unifyCoinDCXTrades(fileBuffer: Buffer): UnifiedTrade[] {
   return unified;
 }
 
+function extractAsset(pair: string): string {
+  return pair.replace(/INR$/, "");
+}
+
+function extractPrice(value: string): number {
+  return Number(
+    value
+      .replace(/INR/i, "") // remove INR
+      .replace(/,/g, "") // remove thousand separators
+      .trim()
+  );
+}
+
 //remaining.
 export function unifiedCoinSwitch(fileBuffer: Buffer): UnifiedTrade[] {
   const workbook = XLSX.read(fileBuffer, { type: "buffer" });
@@ -129,25 +142,31 @@ export function unifiedCoinSwitch(fileBuffer: Buffer): UnifiedTrade[] {
     });
 
     for (const r of rows) {
+      let currency = String(r["Market"]);
+
+      currency = extractAsset(currency);
+
+      let price = extractPrice(r["Price"]);
+
       unified.push({
         "Order ID": String(r["Transaction Id"]),
         "Created At": String(r["Date"]),
         "TDS Amount": Number(r["TDS Amount"] || 0),
-        Side: r["Trade Type"] === "Buy" ? "BUY" : "SELL",
+        Side: r["Trade Type"] === "BUY" ? "BUY" : "SELL",
 
-        Currency: String(r["Crypto"]),
-        "Price Per Unit": Number(r["Avg Buying/Selling Price(in INR)"]),
+        Currency: currency,
+        "Price Per Unit": price,
         // price_inr: Number(r["Avg Buying/Selling Price(in INR)"]),
-        "Total Quantity": Number(r["Quantity"]),
-        "Total Amount": Number(
-          r["Gross Amount Paid/Received by the user(in INR)"]
-        ),
+        "Total Quantity": r["Volume"],
+        "Total Amount": r["Total"],
         fee_inr: Number(r["Fees(in INR)"] || 0),
         net_inr: Number(r["Net Amount Paid/Received by the user(in INR)"]),
         source: "INSTANT",
       });
     }
   }
+
+  console.log(unified, "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
 
   return unified;
 }
