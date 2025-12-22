@@ -20,7 +20,7 @@ export default function ExchangeCSVUpload() {
     }
 
     if (!file) {
-      setError("Please upload a CSV file");
+      setError("Please upload a CSV or Excel file");
       return;
     }
 
@@ -84,7 +84,7 @@ export default function ExchangeCSVUpload() {
       {/* CSV Upload */}
       <input
         type="file"
-        accept=".csv"
+        accept=".csv, .xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="exchange-file"
         onChange={(e) => setFile(e.target.files?.[0] || null)}
       />
