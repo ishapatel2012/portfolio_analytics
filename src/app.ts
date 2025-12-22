@@ -46,6 +46,7 @@ const memoryUpload = multer({
 // redis.on("error", (err: any) => console.error("Redis error:", err));
 
 const app = express();
+app.set("trust proxy", true);
 const PORT = 5000;
 
 // app.set("redis", redis);
