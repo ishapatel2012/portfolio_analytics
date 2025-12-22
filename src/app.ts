@@ -23,14 +23,17 @@ import { exchangePairs } from "./exchangePais.js";
 import { accountSymbols } from "./accountSymbols.js";
 import { generateBinanceHoldingsPdf } from "./binance_pdf.js";
 import { generateAssetSourcePdf } from "./binance_history_pdf.js";
-import { classifyAssets } from "./binanceHistory.js";
 import bodyParser from "body-parser";
-import { upload } from "./upload.js";
+import multer from "multer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config();
 const ORDERS_FILE = path.join(process.cwd(), "all_orders.json");
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
 // const redis = new Redis({
 //   host: process.env.REDIS_HOST || "127.0.0.1",
@@ -57,7 +60,6 @@ import {
   unifyCoinDCXTrades,
 } from "./unifyCoinDCXTrades.js";
 import { saveBinanceCSV, saveUnifiedCSV } from "./writeUnifiedSheet.js";
-import multer from "multer";
 import { pool } from "./db/db.js";
 
 app.use(
@@ -65,7 +67,7 @@ app.use(
     origin: [
       //   "http://localhost:5173", // Vite / React
       "http://localhost:3000", // optional
-      "https://portfolio-analytics-eta.vercel.app"
+      "https://portfolio-analytics-eta.vercel.app",
     ],
     methods: ["GET", "POST"],
     credentials: true,
@@ -707,22 +709,20 @@ app.get("/asset-origins", async (req, res) => {
 //   return res.json(result);
 // });
 
-app.post("/csv_parser_all", upload.single("file"), async (req, res) => {
+app.post("/csv_parser_all", memoryUpload.single("file"), async (req, res) => {
   try {
-    console.log("executed...");
+    console.log("coming here", req);
     if (!req.file) {
       return res.status(400).json({ error: "CSV file is required" });
     }
 
-    const csvPath = req.file.path;
-    console.log(csvPath, "&&&&&&&&&&&&&&&&&&&&&");
+    // CSV lives in RAM
+    const data = await readCsv(req.file.buffer);
+
+    const result = calculateFifoForAllSymbols(data);
 
     const pdfName = `FY_2024_Crypto_Tax_Report_${Date.now()}.pdf`;
-    // const pdfPath = path.join(__dirname, pdfName);
     const pdfPath = path.join(process.cwd(), "uploads", pdfName);
-
-    const data = await readCsv(csvPath);
-    const result = calculateFifoForAllSymbols(data);
 
     await generateTaxPdf(result, pdfPath);
 
@@ -730,43 +730,45 @@ app.post("/csv_parser_all", upload.single("file"), async (req, res) => {
       "host"
     )}/download/${pdfName}`;
 
-    return res.json({
-      downloadUrl,
-    });
+    res.json({ downloadUrl });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to generate tax PDF" });
   }
 });
 
-app.post("/csv_parser_binance", upload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "CSV file is required" });
+app.post(
+  "/csv_parser_binance",
+  memoryUpload.single("file"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "CSV file is required" });
+      }
+
+      // CSV lives in RAM (memory upload)
+      const pdfName = `FY_2025_Crypto_Tax_Report_Binance${Date.now()}.pdf`;
+      // const pdfPath = path.join(__dirname, pdfName);
+      const pdfPath = path.join(process.cwd(), "uploads", pdfName);
+
+      const data = await readCsvBinance(req.file.buffer);
+      const result = calculateFifoUnifiedBinance(data);
+
+      await generateTaxPdfBinanceUnified(result, pdfPath);
+
+      const downloadUrl = `${req.protocol}://${req.get(
+        "host"
+      )}/download/${pdfName}`;
+
+      return res.json({
+        downloadUrl,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to generate tax PDF" });
     }
-
-    const csvPath = req.file.path;
-    const pdfName = `FY_2025_Crypto_Tax_Report_Binance${Date.now()}.pdf`;
-    // const pdfPath = path.join(__dirname, pdfName);
-    const pdfPath = path.join(process.cwd(), "uploads", pdfName);
-
-    const data = await readCsvBinance(csvPath);
-    const result = calculateFifoUnifiedBinance(data);
-
-    await generateTaxPdfBinanceUnified(result, pdfPath);
-
-    const downloadUrl = `${req.protocol}://${req.get(
-      "host"
-    )}/download/${pdfName}`;
-
-    return res.json({
-      downloadUrl,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to generate tax PDF" });
   }
-});
+);
 
 app.get("/download/:file", (req, res) => {
   const filePath = path.join(process.cwd(), "uploads", req.params.file);
@@ -778,10 +780,7 @@ app.get("/download/:file", (req, res) => {
   res.download(filePath);
 });
 
-const multerUpload = multer();
-const router = express.Router();
-
-export async function processCsvAndGeneratePdf(csvPath: string) {
+async function processCsvAndGeneratePdf(csvPath: string) {
   const pdfName = `FY_2024_Crypto_Tax_Report_${Date.now()}.pdf`;
   const pdfPath = path.join(process.cwd(), "uploads", pdfName);
 
@@ -795,7 +794,7 @@ export async function processCsvAndGeneratePdf(csvPath: string) {
 
 app.post(
   "/unified-tax-calculator",
-  multerUpload.single("file"),
+  memoryUpload.single("file"),
   async (req, res) => {
     try {
       if (!req.file) {
@@ -835,7 +834,7 @@ app.post(
   }
 );
 
-app.post("/coindcx/unify", multerUpload.single("file"), (req, res) => {
+app.post("/coindcx/unify", memoryUpload.single("file"), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "File required" });
   }
@@ -851,7 +850,7 @@ app.post("/coindcx/unify", multerUpload.single("file"), (req, res) => {
   });
 });
 
-app.post("/binance/unify", multerUpload.single("file"), async (req, res) => {
+app.post("/binance/unify", memoryUpload.single("file"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "File required" });
   }
