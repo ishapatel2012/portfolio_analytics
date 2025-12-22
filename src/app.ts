@@ -782,19 +782,11 @@ app.get("/download/:file", (req, res) => {
   res.download(filePath);
 });
 
-<<<<<<< HEAD
-const multerUpload = multer();
-const router = express.Router();
-
-export async function processCsvAndGeneratePdf(
+async function processCsvAndGeneratePdf(
   csvPath: string,
   exchangeName?: string
 ) {
   const pdfName = `FY_2025_Crypto_Tax_Report_${Date.now()}.pdf`;
-=======
-async function processCsvAndGeneratePdf(csvPath: string) {
-  const pdfName = `FY_2024_Crypto_Tax_Report_${Date.now()}.pdf`;
->>>>>>> a85dd01d65d8b6fca5564d56ca11ae733203a961
   const pdfPath = path.join(process.cwd(), "uploads", pdfName);
 
   if (exchangeName === "binance") {
