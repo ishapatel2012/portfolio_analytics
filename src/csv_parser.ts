@@ -44,10 +44,9 @@ export function calculateFIFO(
   // 1. Filter BTC buy rows
   const btcBuys = rows
     .filter(
-      (r) =>
-        r.Currency === "BTC" &&
-        r.Side.toLowerCase() === "buy" &&
-        r.Status.toLowerCase() === "filled"
+      (r) => r.Currency === "BTC" && r.Side.toLowerCase() === "buy"
+      // &&
+      // r.Status.toLowerCase() === "filled"
     )
     .map((r) => ({
       qty: Number(r["Total Quantity"]),
@@ -112,6 +111,7 @@ export function calculateFifoForAllSymbols(
   // Group trades by symbol
   const coins = new Map<string, TradeRow[]>();
 
+  console.log("ROWS", rows);
   for (const row of rows) {
     const symbol = row.Currency;
     if (!coins.has(symbol)) coins.set(symbol, []);
@@ -123,21 +123,31 @@ export function calculateFifoForAllSymbols(
   for (const [symbol, trades] of coins) {
     // Filter buys and sells
     const buys = trades
-      .filter((t) => t.Side === "buy" && t.Status === "filled")
+      .filter(
+        (t) => t.Side.toLowerCase() === "buy"
+        // && t.Status === "filled"
+      )
       .map((t) => ({
         qty: Number(t["Total Quantity"]),
         price: Number(t["Price Per Unit"]),
         date: new Date(t["Created At"]).getTime(),
       }));
 
+    console.log(buys.length);
+
     const sells = trades
-      .filter((t) => t.Side === "sell" && t.Status === "filled")
+      .filter(
+        (t) => t.Side.toLowerCase() === "sell"
+        // && t.Status === "filled"
+      )
       .map((t) => ({
         qty: Number(t["Total Quantity"]),
         price: Number(t["Price Per Unit"]),
         date: new Date(t["Created At"]).getTime(),
         tds: Number(t["TDS Amount"]),
       }));
+
+    console.log(sells.length);
 
     // if (sells.length === 0) continue; // No tax needed
 
@@ -150,6 +160,7 @@ export function calculateFifoForAllSymbols(
     let totalSold = 0;
 
     let tds = 0;
+
     let createdAt = 0;
     // FIFO Engine
     for (const sell of sells) {
@@ -178,12 +189,16 @@ export function calculateFifoForAllSymbols(
     const remainingQty = buys.reduce((s, b) => s + b.qty, 0);
     // const remainingQty = buys.reduce((s, b) => s + b.qty, 0);
 
-    let tax = totalProfit * taxRate;
+    let tax = 0;
+    let netProfit = 0;
+    let tdsDeductionTax = 0;
+    if (totalProfit > 0) {
+      tax = totalProfit * taxRate;
 
-    tax = tax * 0.04 + tax;
-    const tdsDeductionTax = tax - tds;
-
-    const netProfit = totalProfit - tax;
+      tax = tax * 0.04 + tax;
+      netProfit = totalProfit - tax;
+      tdsDeductionTax = tax - tds;
+    }
 
     // if (totalSold === 0) {
     results.push({
@@ -197,6 +212,165 @@ export function calculateFifoForAllSymbols(
       createdAt,
     });
     // }
+  }
+
+  return results;
+}
+
+export interface TradeRowUnifiedBinance {
+  "Created At": Date;
+  Currency: string;
+  Side: string;
+  "Price Per Unit": any;
+  "Total Quantity": any;
+  "Total Amount": any;
+}
+
+export function readCsvBinance(
+  path: string
+): Promise<TradeRowUnifiedBinance[]> {
+  return new Promise((resolve, reject) => {
+    const results: TradeRowUnifiedBinance[] = [];
+
+    fs.createReadStream(path)
+      .pipe(csv())
+      .on("data", (row) => results.push(row))
+      .on("end", () => resolve(results))
+      .on("error", reject);
+  });
+}
+const isValidNumber = (v: unknown): v is number => {
+  console.log(typeof v === "number" && Number.isFinite(v));
+  return typeof v === "number" && Number.isFinite(v);
+};
+
+export function calculateFifoUnifiedBinance(
+  rows: TradeRowUnifiedBinance[],
+  taxRate = 0.3
+) {
+  // : CoinTaxResult[]
+  // Group trades by symbol
+  const coins = new Map<string, TradeRowUnifiedBinance[]>();
+
+  console.log(rows);
+
+  for (const row of rows) {
+    const symbol = row.Currency;
+    if (!coins.has(symbol)) coins.set(symbol, []);
+    coins.get(symbol)!.push(row);
+  }
+
+  const results: CoinTaxResult[] = [];
+
+  for (const [symbol, trades] of coins) {
+    // Filter buys and sells
+    const buys = trades
+      .filter(
+        (t) =>
+          t.Side.toLowerCase() === "buy" &&
+          t["Price Per Unit"] !== "No Data Available." &&
+          t["Total Amount"] !== " NaN" &&
+          t["Total Amount"] !== "Spot" &&
+          t["Total Quantity"] !== "NaN"
+
+        // isValidNumber(t["Price Per Unit"]) &&
+        // isValidNumber(t["Total Quantity"]) &&
+        // isValidNumber(t["Total Amount"])
+
+        // && t.Status === "filled"
+      )
+      .map((t) => ({
+        qty: Number(t["Total Quantity"]),
+        price: Number(t["Price Per Unit"]),
+        date: new Date(t["Created At"]).getTime(),
+      }));
+
+    const sells = trades
+      .filter(
+        (t) =>
+          t.Side.toLowerCase() === "sell" &&
+          t["Price Per Unit"] !== "No Data Available." &&
+          t["Total Amount"] !== " NaN" &&
+          t["Total Amount"] !== "Spot" &&
+          t["Total Quantity"] !== "NaN"
+      )
+      .map((t) => ({
+        qty: Number(t["Total Quantity"]),
+        price: t["Price Per Unit"],
+        date: new Date(t["Created At"]).getTime(),
+        // tds: Number(t["TDS Amount"]),
+      }));
+
+    // if (sells.length === 0) continue; // No tax needed
+
+    // Sort buys & sells by date
+    buys.sort((a, b) => a.date - b.date);
+
+    sells.sort((a, b) => a.date - b.date);
+
+    let totalProfit = 0;
+    let totalSold: number = 0;
+
+    let tds = 0;
+
+    let createdAt = 0;
+    // FIFO Engine
+    for (const sell of sells) {
+      console.log(sell);
+      let remainingSell = sell.qty;
+      totalSold += sell.qty;
+
+      console.log("totalSold", totalSold);
+
+      for (const buy of buys) {
+        if (remainingSell <= 0) break;
+
+        if (buy.qty === 0) continue;
+
+        const take = Math.min(remainingSell, buy.qty);
+        remainingSell -= take;
+        buy.qty -= take;
+
+        const profit = take * (sell.price - buy.price);
+        totalProfit += profit;
+      }
+
+      // tds = sell.tds;
+
+      createdAt = sell.date;
+    }
+
+    //remaining quantity:
+    const remainingQty = buys.reduce((s, b) => s + b.qty, 0);
+    // const remainingQty = buys.reduce((s, b) => s + b.qty, 0);
+
+    let tax = 0;
+    let netProfit = 0;
+    let tdsDeductionTax = 0;
+    if (totalProfit > 0) {
+      tax = totalProfit * taxRate;
+
+      tax = tax * 0.04 + tax;
+      netProfit = totalProfit - tax;
+      // tdsDeductionTax = tax - tds;
+    }
+
+    // if (totalSold === 0) {
+    results.push({
+      symbol,
+      totalSold,
+      totalProfit,
+      tax,
+      netProfit,
+      // normal payable tax right now without tds.
+      payableTax: tax,
+      remainingQty,
+      createdAt,
+    });
+    // }
+
+    // console.log(results);
+    // break;
   }
 
   return results;

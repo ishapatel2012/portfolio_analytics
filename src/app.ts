@@ -9,9 +9,14 @@ import { detectOrigins } from "./assetOriginDetector.js";
 import {
   calculateFIFO,
   calculateFifoForAllSymbols,
+  calculateFifoUnifiedBinance,
   readCsv,
+  readCsvBinance,
 } from "./csv_parser.js";
-import { generateTaxPdf } from "./generate_pdf.js";
+import {
+  generateTaxPdf,
+  generateTaxPdfBinanceUnified,
+} from "./generate_pdf.js";
 
 import { fileURLToPath } from "url";
 import { exchangePairs } from "./exchangePais.js";
@@ -47,6 +52,13 @@ app.use(bodyParser.json());
 
 import cors from "cors";
 import { calculateTax } from "./binanceTaxCalculation.js";
+import {
+  unifiedBinanceTrades,
+  unifyCoinDCXTrades,
+} from "./unifyCoinDCXTrades.js";
+import { saveBinanceCSV, saveUnifiedCSV } from "./writeUnifiedSheet.js";
+import multer from "multer";
+import { pool } from "./db/db.js";
 
 app.use(
   cors({
@@ -727,6 +739,35 @@ app.post("/csv_parser_all", upload.single("file"), async (req, res) => {
   }
 });
 
+app.post("/csv_parser_binance", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "CSV file is required" });
+    }
+
+    const csvPath = req.file.path;
+    const pdfName = `FY_2025_Crypto_Tax_Report_Binance${Date.now()}.pdf`;
+    // const pdfPath = path.join(__dirname, pdfName);
+    const pdfPath = path.join(process.cwd(), "uploads", pdfName);
+
+    const data = await readCsvBinance(csvPath);
+    const result = calculateFifoUnifiedBinance(data);
+
+    await generateTaxPdfBinanceUnified(result, pdfPath);
+
+    const downloadUrl = `${req.protocol}://${req.get(
+      "host"
+    )}/download/${pdfName}`;
+
+    return res.json({
+      downloadUrl,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to generate tax PDF" });
+  }
+});
+
 app.get("/download/:file", (req, res) => {
   const filePath = path.join(process.cwd(), "uploads", req.params.file);
 
@@ -737,120 +778,153 @@ app.get("/download/:file", (req, res) => {
   res.download(filePath);
 });
 
-const BINANCE_BASE_URL = "https://api.binance.com";
+const multerUpload = multer();
+const router = express.Router();
 
-// export async function getBinanceBalances() {
-//   try {
-//     const timestamp = Date.now();
-//     const query = `timestamp=${timestamp}`;
-//     const signature = sign(query);
+export async function processCsvAndGeneratePdf(csvPath: string) {
+  const pdfName = `FY_2024_Crypto_Tax_Report_${Date.now()}.pdf`;
+  const pdfPath = path.join(process.cwd(), "uploads", pdfName);
 
-//     const url = `${BINANCE_BASE_URL}/api/v3/account?${query}&signature=${signature}`;
+  const data = await readCsv(csvPath);
+  const result = calculateFifoForAllSymbols(data);
 
-//     const res = await axios.get(url, {
-//       headers: {
-//         "X-MBX-APIKEY": API_KEY,
-//       },
-//     });
+  await generateTaxPdf(result, pdfPath);
 
-//     /*
-//     returns:
-//     [
-//       { asset: "BTC", free: "0.00000324", locked: "0.00000000" },
-//       ...
-//     ]
-//   */
-//     return res.data.balances;
-//   } catch (err) {
-//     console.error(err);
-//     return [];
-//   }
-// }
+  return { pdfName, pdfPath };
+}
 
-// export async function getAssetIncome() {
-//   const timestamp = Date.now();
-//   const query = `timestamp=${timestamp}`;
-//   const signature = sign(query);
+app.post(
+  "/unified-tax-calculator",
+  multerUpload.single("file"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "File required" });
+      }
 
-//   const url = `${BINANCE_BASE_URL}/sapi/v1/asset/assetDividend?${query}&signature=${signature}`;
+      const exchangeName = req.body.exchangeName;
 
-//   const res = await axios.get(url, {
-//     headers: {
-//       "X-MBX-APIKEY": API_KEY,
-//     },
-//   });
+      if (exchangeName === "coindcx") {
+        // 1. Unify CoinDCX trades
+        const unified = unifyCoinDCXTrades(req.file.buffer);
 
-//   /*
-//     Example item:
-//     {
-//       asset: "PEPE",
-//       incomeType: "AIRDROP",
-//       income: "1384280",
-//       time: 1693564800000
-//     }
-//   */
-//   //   console.log(res, "$$$$$$$$$$$$$$$$$$$$");
-//   return res.data;
-// }
+        // 2. Save unified CSV
+        const { filePath, fileName } = saveUnifiedCSV(unified);
 
-// export async function getAllSpotTrades(
-//   symbols: string[],
-//   delayMs = 300 // ~3 req/sec (safe)
-// ) {
-//   const allTrades: any[] = [];
+        // 3. Immediately parse CSV & generate PDF
+        const { pdfName } = await processCsvAndGeneratePdf(filePath);
 
-//   for (const symbol of symbols) {
-//     console.log(symbol);
-//     let success = false;
-//     let attempts = 0;
+        // 4. Respond once
+        return res.json({
+          message: "Unified CSV + Tax PDF generated",
+          csvFile: fileName,
+          csvDownloadUrl: `${req.protocol}://${req.get(
+            "host"
+          )}/coindcx/${fileName}`,
+          pdfDownloadUrl: `${req.protocol}://${req.get(
+            "host"
+          )}/download/${pdfName}`,
+        });
+      } else if (exchangeName == "binance") {
+      } else if (exchangeName == "coin-switch") {
+      }
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Processing failed" });
+    }
+  }
+);
 
-//     while (!success && attempts < 5) {
-//       try {
-//         const timestamp = Date.now();
-//         const query = `symbol=${symbol}&timestamp=${timestamp}`;
-//         const signature = sign(query);
+app.post("/coindcx/unify", multerUpload.single("file"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "File required" });
+  }
 
-//         const url = `${BINANCE_BASE_URL}/api/v3/myTrades?${query}&signature=${signature}`;
+  const unified = unifyCoinDCXTrades(req.file.buffer);
+  const { filePath, fileName } = saveUnifiedCSV(unified);
 
-//         const res = await axios.get(url, {
-//           headers: {
-//             "X-MBX-APIKEY": API_KEY,
-//           },
-//         });
+  return res.json({
+    message: "Unified report generated",
+    fileName,
+    filePath, // local path
+    downloadUrl: `http://localhost:5000/coindcx/${fileName}`,
+  });
+});
 
-//         allTrades.push(...res.data);
-//         success = true;
+app.post("/binance/unify", multerUpload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "File required" });
+  }
 
-//         // ✅ throttle next request
-//         await sleep(delayMs);
-//       } catch (err: any) {
-//         attempts++;
+  const unified = await unifiedBinanceTrades(req.file.buffer);
+  const { filePath, fileName } = saveBinanceCSV(unified);
 
-//         // 🔁 Retry on rate limit
-//         if (err.response?.status === 429) {
-//           const wait = delayMs * attempts;
-//           console.warn(`Rate limit hit for ${symbol}. Retrying in ${wait}ms`);
-//           await sleep(wait);
-//         } else {
-//           console.error(`Failed for ${symbol}`, err.message);
-//           break; // real error → skip symbol
-//         }
-//       }
-//     }
-//   }
+  return res.json({
+    message: "Binance unified report generated",
+    fileName,
+    filePath, // local path
+    downloadUrl: `http://localhost:5000/binance/${fileName}`,
+  });
+});
 
-//   return allTrades;
-// }
+app.get("/binance/api/avgPrice", async (req, res) => {
+  const symbol = "XRP";
 
-// const balances = await getBinanceBalances(); // /api/v3/account
-// const income = await getAssetIncome(); // /sapi/v1/asset/income
+  const response = await axios.get(
+    `https://api.binance.com/api/v3/avgPrice?symbol=${symbol}`
+  );
 
-// console.log(income, "###################");
-// const trades = await getAllSpotTrades(exchangePairs); // /api/v3/myTrades
+  console.log(response);
 
-// const classified = classifyAssets(balances, income, trades);
+  return res.send(response.data);
+});
+// cryptoMaster.service.ts
 
-// generateAssetSourcePdf(classified, "Binance_Asset_Source_Report.pdf");
+// app.get("/crypto_master", async (req, res) => {
+//   console.log("executed....................");
+//   const data = await getCryptoMaster();
+//   console.log(data);
+//   return res.json(data);
+// });
+
+async function getDailyPrice(symbol: string, date: string) {
+  // const start = new Date(`${date}T00:00:00Z`).getTime();
+  // const end = new Date(`${date}T23:59:59Z`).getTime();
+
+  const start = new Date("2018-09-04 00:05:00").getTime();
+  const end = new Date("2018-09-04 23:55:00").getTime();
+
+  const { data } = await axios.get("https://api.binance.com/api/v3/klines", {
+    params: {
+      symbol,
+      interval: "5m",
+      startTime: start,
+      endTime: end,
+      limit: 1,
+    },
+  });
+
+  if (!data.length) return null;
+
+  const [openTime, open, high, low, close] = data[0];
+
+  console.log({
+    openTime,
+    open,
+    high,
+    low,
+    close,
+  });
+  return {
+    date,
+    open: Number(open),
+    high: Number(high),
+    low: Number(low),
+    close: Number(close),
+    openTime,
+  };
+}
+// await getDailyPrice("BTCUSDT", "2024-01-01");
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

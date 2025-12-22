@@ -1,0 +1,48 @@
+.exchange-card {
+  background: #111;
+  padding: 24px;
+  border-radius: 10px;
+  border: 1px solid rgb(148, 112, 35);
+  width: 100%;
+}
+
+.exchange-title {
+  font-size: 18px;
+  margin-bottom: 15px;
+  color: rgb(148, 112, 35);
+}
+
+.exchange-select {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  border: 1px solid rgb(148, 112, 35);
+  background: #000;
+  color: #fff;
+}
+
+.exchange-file {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  border: 2px dashed rgb(148, 112, 35);
+  background: #000;
+  color: #fff;
+}
+
+.exchange-btn {
+  width: 100%;
+  padding: 12px;
+  background: rgb(148, 112, 35);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.exchange-btn:hover {
+  opacity: 0.9;
+}
