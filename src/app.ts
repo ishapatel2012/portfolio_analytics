@@ -69,7 +69,7 @@ app.use(
       //   "http://localhost:5173", // Vite / React
       "http://localhost:3000", // optional
       "https://portfolio-analytics-eta.vercel.app",
-      "https://portfolio-analytics-forked.vercel.app"
+      "https://portfolio-analytics-forked.vercel.app",
     ],
     methods: ["GET", "POST"],
     credentials: true,
@@ -786,8 +786,13 @@ async function processCsvAndGeneratePdf(
   csvPath: string,
   exchangeName?: string
 ) {
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
   const pdfName = `FY_2025_Crypto_Tax_Report_${Date.now()}.pdf`;
-  const pdfPath = path.join(process.cwd(), "uploads", pdfName);
+  const pdfPath = path.join(uploadsDir, pdfName);
 
   if (exchangeName === "binance") {
     const data = await readCsvBinance(csvPath);
@@ -844,7 +849,7 @@ app.post(
         const unified = await unifiedBinanceTrades(req.file.buffer);
 
         // 2. Save unified CSV
-        const { filePath, fileName } = await saveBinanceCSV(unified);
+        const { filePath, fileName } = saveBinanceCSV(unified);
 
         // 3. Immediately parse CSV & generate PDF
         const { pdfName, pdfPath } = await processCsvAndGeneratePdf(

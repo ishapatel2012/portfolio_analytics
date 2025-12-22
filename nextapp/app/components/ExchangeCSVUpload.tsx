@@ -41,7 +41,8 @@ export default function ExchangeCSVUpload() {
       );
 
       if (!res.ok) {
-        throw new Error("Upload failed");
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Upload failed");
       }
 
       const data: ApiResponse = await res.json();
@@ -50,10 +51,15 @@ export default function ExchangeCSVUpload() {
         throw new Error("Download URL missing");
       }
 
-      // ✅ Let browser download directly
-      window.open(data.downloadUrl, "_blank");
-    } catch (err) {
-      setError("Failed to generate tax report");
+       // Create a temporary link to trigger the download seamlessly
+    const link = document.createElement("a");
+    link.href = data.downloadUrl;
+    link.setAttribute("download", "Tax_Report.pdf"); // Hint to the browser to download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    } catch (err: any) {
+      setError(err.message || "Failed to generate tax report");
     } finally {
       setLoading(false);
     }

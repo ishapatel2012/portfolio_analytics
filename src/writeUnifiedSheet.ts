@@ -58,7 +58,7 @@ export function saveUnifiedCSV(unified: UnifiedTrade[]): {
   const csvContent = csvRows.join("\n");
 
   const fileName = `Unified_CoinDCX_Report_${Date.now()}.csv`;
-  const filePath = path.join(__dirname, "../Downloads", fileName);
+  const filePath = path.join(__dirname, "../uploads", fileName);
 
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, csvContent, "utf8");
@@ -96,7 +96,7 @@ export function saveBinanceCSV(unified: binanceUnifiedTrade[]): {
   const csvContent = csvRows.join("\n");
 
   const fileName = `Unified_Binance_Report_${Date.now()}.csv`;
-  const filePath = path.join(__dirname, "../Downloads", fileName);
+  const filePath = path.join(__dirname, "../uploads", fileName);
 
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, csvContent, "utf8");
