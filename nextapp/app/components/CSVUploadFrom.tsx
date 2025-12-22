@@ -45,9 +45,14 @@ export default function CSVUploadForm() {
       throw new Error("Download URL missing");
     }
 
-    // 🔥 THIS IS THE FIX
-    window.open(data.downloadUrl, "_blank");
-
+     // Create a temporary link to trigger the download seamlessly
+    const link = document.createElement("a");
+    link.href = data.downloadUrl;
+    link.setAttribute("download", "Tax_Report.pdf"); // Hint to the browser to download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
   } catch (err) {
     setError("Failed to process CSV");
   } finally {
